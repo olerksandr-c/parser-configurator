@@ -12,6 +12,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Exception;
 use Livewire\Attributes\Computed;
 use App\Models\ParsingTemplate;
+use Illuminate\Validation\Rule;
 
 class ParserConfigurator extends Component
 {
@@ -41,10 +42,68 @@ class ParserConfigurator extends Component
     public string $templateName = '';
     public string $filePattern = '';
     public ?string $successMessage = null;
+    public ?ParsingTemplate $template = null;
 
-    public function mount()
+    public function mount($templateId = null)
     {
         $this->rawRows = collect();
+        if ($templateId) {
+            $this->template = ParsingTemplate::findOrFail($templateId);
+            $this->templateName = $this->template->name;
+            $this->filePattern = $this->template->file_pattern;
+
+            // Завантажуємо конфігурацію
+            $config = $this->template->config;
+            $this->headerRowNumber = $config['headerRow'] ?? 1;
+            $this->mappings = $config['mappings'] ?? [];
+            $this->filters = $config['filters'] ?? [];
+        }
+    }
+
+    /**
+     * Зберігає або оновлює шаблон.
+     */
+    public function save()
+    {
+        // Правило валідації для унікальності назви
+        $uniqueRule = Rule::unique('parsing_templates', 'name');
+        if ($this->template) {
+            $uniqueRule->ignore($this->template->id); // Ігноруємо поточний запис при оновленні
+        }
+
+        $this->validate([
+            'templateName' => ['required', 'string', 'min:3', $uniqueRule],
+            'filePattern' => 'required|string|min:3',
+        ]);
+
+        if (empty(array_filter($this->mappings))) {
+            $this->addError('mappings', 'Необхідно налаштувати хоча б один стовпець.');
+            return;
+        }
+
+        $configData = [
+            'headerRow' => $this->headerRowNumber,
+            'mappings' => $this->mappings,
+            'filters' => $this->filters,
+        ];
+
+        if ($this->template) {
+            // Оновлення існуючого шаблону
+            $this->template->update([
+                'name' => $this->templateName,
+                'file_pattern' => $this->filePattern,
+                'config' => $configData,
+            ]);
+            $this->successMessage = "Шаблон '{$this->templateName}' успішно оновлено!";
+        } else {
+            // Створення нового шаблону
+            ParsingTemplate::create([
+                'name' => $this->templateName,
+                'file_pattern' => $this->filePattern,
+                'config' => $configData,
+            ]);
+            $this->successMessage = "Шаблон '{$this->templateName}' успішно створено!";
+        }
     }
 
     // Метод updated() було повністю видалено, щоб прибрати автоматизацію.
@@ -141,37 +200,7 @@ class ParserConfigurator extends Component
         return false;
     }
 
-    public function save()
-    {
-        $this->validate([
-            'templateName' => 'required|string|min:3|unique:parsing_templates,name',
-            'filePattern' => 'required|string|min:3',
-        ]);
-
-        // Перевіряємо, чи налаштовано хоча б один стовпець
-        if (empty(array_filter($this->mappings))) {
-            $this->addError('mappings', 'Необхідно налаштувати хоча б один стовпець.');
-            return;
-        }
-
-        $configData = [
-            'mappings' => $this->mappings,
-            'headerRow' => $this->headerRowNumber,
-            'filters' => $this->filters,
-        ];
-
-        ParsingTemplate::create([
-            'name' => $this->templateName,
-            'file_pattern' => $this->filePattern,
-            'config' => $configData,
-        ]);
-
-        $this->successMessage = "Шаблон '{$this->templateName}' успішно збережено!";
-
-        // Опціонально: можна скинути стан форми після збереження
-        // $this->reset(['templateName', 'filePattern', 'file', 'rawRows', 'filters', 'mappings']);
-    }
-
+   
     public function render()
     {
         return view('livewire.parser-configurator');
