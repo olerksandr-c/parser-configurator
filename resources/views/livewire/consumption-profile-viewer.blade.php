@@ -81,7 +81,7 @@
                                     </span>
                                     @else
                                     <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                        {{ number_format($profile->coefficient_sum, 4) }}
+                                        {{ number_format($profile->coefficient_sum, 8) }}
                                     </span>
                                     @endif
                             </td>
@@ -102,7 +102,7 @@
                             <td class="px-2 py-3 text-center text-sm">
                                 {{-- ВИПРАВЛЕНО: Порівнюємо підсумок з 1, а не з кількістю профілів --}}
                                 <span class="px-2 inline-flex text-xs leading-5 rounded-full {{ abs($grandTotal - 1) < 0.0001 && $profiles->count() > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
-                                    {{ number_format($grandTotal, 4, '.', '') }}
+                                    {{ number_format($grandTotal, 8, '.', '') }}
                                 </span>
                             </td>
                             <td class="px-2 py-3"></td>

@@ -6,6 +6,7 @@ use App\Models\EnergyCompany;
 use App\Models\ConsumptionProfile;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 
 class ConsumptionProfileViewer extends Component
@@ -39,21 +40,56 @@ class ConsumptionProfileViewer extends Component
 
     public function render()
     {
-        $startDate = Carbon::create($this->selectedYear, $this->selectedMonth, 1)->startOfMonth();
-        $endDate = $startDate->copy()->endOfMonth();
+    $startDate = Carbon::create($this->selectedYear, $this->selectedMonth, 1)->startOfMonth();
+    $endDate = $startDate->copy()->endOfMonth();
+    $startDateStr = $startDate->format('Y-m-d');
+    $endDateStr = $endDate->format('Y-m-d');
 
-        $profilesQuery = ConsumptionProfile::query()
+        // Сначала получаем максимальные версии для каждой даты
+        $maxVersions = ConsumptionProfile::query()
+            ->select('profile_date')
+            ->selectRaw('MAX(version) as max_version')
             ->where('energy_company_id', $this->selectedCompanyId)
-            ->whereBetween('profile_date', [$startDate, $endDate])
-            ->whereIn(DB::raw('(profile_date, version)'), function ($query) {
-                $query->select('profile_date', DB::raw('MAX(version)'))
-                    ->from('consumption_profiles')
-                    ->where('energy_company_id', $this->selectedCompanyId)
-                    ->groupBy('profile_date');
+            ->whereBetween('profile_date', [$startDateStr, $endDateStr])
+            ->groupBy('profile_date');
+
+        // Явно указываем поля для выборки, чтобы избежать конфликтов
+        $profilesQuery = ConsumptionProfile::query()
+            ->select([
+                'consumption_profiles.id',
+                'consumption_profiles.energy_company_id',
+                'consumption_profiles.profile_date',
+                'consumption_profiles.version',
+                'consumption_profiles.h1','consumption_profiles.h2','consumption_profiles.h3','consumption_profiles.h4','consumption_profiles.h5',
+                'consumption_profiles.h6','consumption_profiles.h7','consumption_profiles.h8','consumption_profiles.h9','consumption_profiles.h10',
+                'consumption_profiles.h11','consumption_profiles.h12','consumption_profiles.h13','consumption_profiles.h14','consumption_profiles.h15',
+                'consumption_profiles.h16','consumption_profiles.h17','consumption_profiles.h18','consumption_profiles.h19','consumption_profiles.h20',
+                'consumption_profiles.h21','consumption_profiles.h22','consumption_profiles.h23','consumption_profiles.h24','consumption_profiles.h25',
+                'consumption_profiles.created_at',
+                'consumption_profiles.updated_at'
+            ])
+            ->where('consumption_profiles.energy_company_id', $this->selectedCompanyId)
+            ->whereBetween('consumption_profiles.profile_date', [$startDateStr, $endDateStr])
+            ->joinSub($maxVersions, 'max_versions', function($join) {
+                $join->on('consumption_profiles.profile_date', '=', 'max_versions.profile_date')
+                     ->whereColumn('consumption_profiles.version', '=', 'max_versions.max_version');
             })
-            ->orderBy('profile_date', 'asc');
+            ->orderBy('consumption_profiles.profile_date', 'asc');
+
+        // Логируем SQL запрос
+        Log::info('Profile query', [
+            'sql' => $profilesQuery->toSql(),
+            'bindings' => $profilesQuery->getBindings()
+        ]);
 
         $profiles = $profilesQuery->get();
+        
+        // Логируем результаты
+        Log::info('Profiles found', [
+            'count' => $profiles->count(),
+            'dates' => $profiles->pluck('profile_date')->toArray()
+        ]);
+
         $grandTotal = 0.0;
 
         $profiles->transform(function ($profile) {
