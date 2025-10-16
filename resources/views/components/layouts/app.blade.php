@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
-        <meta charset="utf-g">
+        {{-- ВИПРАВЛЕНО: 'utf-8' замість 'utf-g' --}}
+        <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
         <title>{{ $title ?? 'Парсер-Конфігуратор' }}</title>
